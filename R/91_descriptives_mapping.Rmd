@@ -1,0 +1,483 @@
+---
+title: 'Field Mapping of Knowledge Structure: AI & INdustry Dynamics'
+author: "Daniel S. Hain"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    toc: no
+    toc_depth: '3'
+    df_print: paged
+  html_notebook:
+    theme: flatly
+    code_folding: hide
+    df_print: paged
+    number_sections: yes
+    toc: no
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+params:
+  institute:
+    value: null
+  department:
+    value: null
+---
+
+<!---
+# Add to YAML when compiling html --< when reviewing change first line to: html_notebook
+  html_document:
+    theme: flatly
+    code_folding: hide
+    df_print: paged
+    number_sections: true
+    toc: false
+    toc_depth: 3
+    toc_float:
+      collapsed: false
+
+# Add when compiling pdf
+# Add to YAML when compiling html
+   bookdown::pdf_document2: 
+    fig_caption: true
+    number_sections: true
+    global_numbering: true
+--->
+
+
+```{=html}
+<style type="text/css">
+.main-container {
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+```
+
+```{r setup, include=FALSE}
+### Generic preamble
+#rm(list=ls())
+Sys.setenv(LANG = "en")
+options(scipen = 5)
+
+set.seed(1337)
+
+### Load packages  
+# general
+library(tidyverse)
+library(magrittr)
+library(widyr)
+
+# Kiblio & NW
+library(bibliometrix)
+library(tidygraph)
+library(ggraph)
+library(igraph)
+
+# NLP
+library(tidytext)
+
+# Dataviz
+library(plotly)
+library(ggforce)
+library(ggrepel)
+library(patchwork)
+
+# Knit
+library(knitr) # For display of the markdown
+library(kableExtra) # For table styling
+
+# own functions
+source("../functions/functions_basic.R")
+source("../functions/functions_summary.R")
+source("../functions/00_parameters.R")
+
+# Knitr options
+knitr::opts_chunk$set(echo = FALSE, 
+                      warning = FALSE, 
+                      message = FALSE)
+```
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+
+```{r, include=FALSE}
+# When doing it here in the notebook
+var_inst <- 'AI'
+var_dept <- 'v1'
+
+# When calling from a highert level script
+#var_inst <- params$institute
+#var_dept <- params$department
+```
+
+# Introduction: Mapping of broad research field around `r var_inst`, `r var_dept`
+
+Here are preliminary results of the bibliometric mapping of the research field. Its purpose is:
+
+* To map the broader research community and distinct research field the department contributes to.
+* Identify core knowledge bases, research areas gtrends and topics.
+* Highlight the positioning of the department within this dynamics.
+
+The method for the research-field-mapping can be reviewed here:
+
+[Rakas, M., & Hain, D. S. (2019). The state of innovation system research: What happens beneath the surface?. Research Policy, 48(9), 103787.](https://doi.org/10.1016/j.respol.2019.04.011)
+
+**Note:** The analysis in this document depicts the *larger research field* around the department, thereby all analysis results are based on the publications of the department plus related.
+
+## Seed articles
+
+* The methodology takes a set of self-selected seed articles as point of departure. 
+* For every of these seed articles, the 2000 articles with the highest bibliographic coupling are extracted.
+' They jointly represent the larger research field.
+* The following seedds are used in this analysis
+
+```{r}
+convert2df(file = '../data/scopus_00.csv', dbsource = "scopus", format = "csv") %>% as_tibble() %>% select(AU, PY, TI, SO)
+```
+
+
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+
+```{r, include=FALSE}
+# Load data
+M <- readRDS(paste0('../../temp/M_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>% as_tibble() %>% 
+  distinct(UT, .keep_all = TRUE) %>% 
+  filter(PY >= PY_min, PY <= PY_max) %>%
+  group_by(PY) %>%
+    mutate(TC_cohort_rank = percent_rank(TC)) %>%
+  ungroup() 
+```
+
+```{r}
+#com_labels <- tibble(com = NA, label = NA, type = NA)
+
+com_labels <- read_csv2('../data/community_labeling.csv') %>% 
+  arrange(com) %>%
+  #filter(institute == var_inst, department == var_dept) %>% arrange(institute, department, type, com) %>%
+  mutate(label = ifelse(is.na(label), paste0(type, ' ', com, ': unlabeled'), paste0(type, ' ', com, ': ', label)))
+```
+
+
+# General Overview over the research field
+
+**Note:** This section provides basic descriptives of th identified research fielld, including number of articles over time, countries, institutions, and authors. See `Technical description`for additional explanations.
+
+```{r, include=FALSE}
+# results <- biblioAnalysis(M, sep = ";")
+results <- read_rds(paste0('../../temp/M_res_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))
+```
+
+## Main Indicators: Publications, Authors, Countries 
+
+### Corpus summary tabular
+
+```{r}
+results %>% summary()
+```
+### Corpus summary graphical
+
+```{r}
+results %>% plot(k = 10, pause = FALSE)
+```
+
+```{r}
+prod_AU <- M %>% authorProdOverTime(k = 10, graph = TRUE)
+#plot(prod_AU$graph)
+```
+
+```{r, include=FALSE}
+rm(results, prod_AU)
+```
+
+
+
+```{r, fig.width=17.5, fig.height=17.5}
+# # Authors, keywords, citations
+#M_threefield <- readRDS(paste0('../../temp/threefield_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) 
+#M_threefield
+```
+
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+
+
+# Knowledge Bases: Co-Citation network analysis 
+
+**Note:** This analysis refers the co-citation analysis, where the cited references and not the original publications are the unit of analysis. Identified knowledge bases can be interpreted as the knowledge foundation the field draws from. See `Technical description`for additional explanations.
+
+```{r, include=FALSE}
+C_nw <- readRDS(paste0('../../temp/C_nw_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))  %>%
+  drop_na(com)
+```
+
+```{r, include=FALSE}
+com_names_cit <- tibble( 
+  com = 1:(C_nw %>% pull(com) %>% n_distinct()),
+  type = 'KB',
+  col = com %>% gg_color_select(pal = pal_kb)) %>%
+  left_join(com_labels %>% filter(type == 'KB') %>% select(com, label), by = 'com') %>%
+  mutate(label = ifelse(is.na(label), paste0('KB ', com, ': unlabeled'), label))
+
+# # 1st alternative: Number them 1-n
+# paste(type, 1:(C_nw %>% pull(com) %>% n_distinct()))
+```
+
+```{r, include=FALSE}
+C_nw %<>% left_join(com_names_cit %>% select(com, label, col), by = "com")
+```
+
+```{r, include=FALSE}
+kb_stats <- C_nw %>%
+  group_by(label) %>%
+  summarise(n = n(), density_int = ((sum(dgr_int) / (n() * (n() - 1))) * 100) %>% round(3)) %>%
+  relocate(label, everything())
+```
+
+```{r}
+kb_sum <-C_nw %>% group_by(com) %>% 
+  arrange(com, desc(dgr_int)) %>%
+  mutate(name = name %>% str_trunc(150)) %>%
+  slice_max(order_by = dgr_int, n = 10, with_ties = FALSE) %>% 
+  ungroup() %>%
+  select( name, dgr_int, dgr) %>%
+  kable() 
+
+for(i in 1:nrow(com_names_cit)){
+  kb_sum <- kb_sum %>%
+    pack_rows(paste0('Knowledge Base ', i, ': ', com_names_cit[i, 'label'],
+                     '   (n = ', kb_stats[i, 'n'], ', density =', kb_stats[i, 'density_int'] %>% round(2), ')' ), 
+              (i*10-9),  (i*10), label_row_css = "background-color: #666; color: #fff;") 
+  }
+
+kb_sum %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 10)
+```
+
+```{r, include=FALSE}
+el_2m <- readRDS(paste0('../../temp/el_2m_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>%
+  drop_na()
+```
+
+
+```{r, include=FALSE}
+cit_com_year <- el_2m %>%
+  count(com_cit, PY, name = 'TC') %>%
+  group_by(PY) %>%
+  mutate(TC_rel = TC / sum(TC)) %>%
+  ungroup() %>%
+  arrange(PY, com_cit) %>%
+  left_join(com_names_cit , by = c('com_cit' = 'com')) %>% 
+  complete(label, PY, fill = list(TC = 0, TC_rel = 0))
+```
+
+```{r, fig.width = 15, fig.height=7.5}
+cit_com_year %>%
+  plot_summary_timeline(y1 = TC, y2 = TC_rel, t = PY, t_min = PY_min, t_max = PY_max, by = label, pal = pal_kb, label = TRUE,
+                        y1_text = "Number citations recieved annually",  y2_text = "Share of citations recieved annually") +
+  plot_annotation(title = paste('Knowledge Bases:', var_inst, 'Field around Dept.', var_dept, sep = ' '),
+                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
+                  caption = 'Absolute knowledge base appearance (left), Relative knowledge base appearance (right)')
+```
+
+## Automated (LMM) summary 
+
+Works a bit less precise, since it only has titles and no abstracts
+
+```{r}
+com_labels_KB <- com_labels %>% filter(type == 'KB') %>%
+  mutate(label = label %>% str_replace('&', 'and')) %>%
+  mutate(description = 	description %>% str_replace('&', 'and'))
+
+for (i in 1:nrow(com_labels_KB)) {#i=1
+  com_labels_n <- com_labels_KB[i,]
+  writeLines(paste('Label:', com_labels_n$label, ' \n ',
+        'Description:', com_labels_n$description, ' \n \n ',
+        collapse = ' '))
+}
+```
+
+
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+
+# Research Areas: Bibliographic coupling analysis
+
+**Note:** This analysis refers the bibliographic coupling analysis, where original publications are the unit of analysis. Identified research areas can be interpreted as the field's current research frontier. See `Technical description`for additional explanations.
+
+```{r, include=FALSE}
+M_bib <- readRDS(paste0('../../temp/M_bib_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>% 
+  as_tibble() %>%
+  drop_na(com)
+```
+
+```{r, include=FALSE}
+com_names_bib <- tibble( 
+  com = 1:(M_bib %>% pull(com) %>% n_distinct()),
+  type = 'RA',
+  col = com %>% gg_color_select(pal = pal_ra)) %>%
+  left_join(com_labels %>% filter(type == 'RA') %>% select(com, label), by = 'com') %>%
+  mutate(label = ifelse(is.na(label), paste0('RA ', com, ': unlabeled'), label))
+
+# # 1st alternative: Number them 1-n
+# paste(type, 1:(M_bib %>% pull(com) %>% n_distinct()))
+```
+
+```{r, include=FALSE}
+M_bib %<>% left_join(com_names_bib %>% select(com, label, col), by = "com")
+```
+
+```{r, include=FALSE}
+ra_stats <- M_bib %>%
+  drop_na(com) %>%
+  group_by(com, label) %>%
+  summarise(n = n(), density_int = ((sum(dgr_int) / (n() * (n() - 1))) * 100) %>% round(3)) %>%
+  select(com, label, everything())
+```
+
+```{r}
+ra_sum <- M_bib %>% 
+  left_join(M %>% select(UT, AU, TI, TC), by = 'UT') %>%
+  group_by(label) %>% 
+  mutate(dgr_select = (dgr_int / max(dgr_int) * (TC / max(TC))) ) %>%
+  slice_max(order_by = dgr_select, n = 10, with_ties = FALSE) %>% 
+  mutate(TC_year = (TC / (2021 + 1 - PY)) %>% round(2),
+         dgr_int = dgr_int %>% round(2),
+         AU = AU %>% str_trunc(25),
+         TI = TI %>% str_trunc(125)) %>%
+  ungroup() %>%
+  select(AU, PY, TI, dgr_int, TC, TC_year) %>%
+  kable()
+
+
+for(i in 1:nrow(com_names_bib)){
+  ra_sum  %<>%
+    pack_rows(paste0('Research Area ', i, ': ', com_names_bib[i, 'label'],
+                     '   (n = ', ra_stats[i, 'n'], ', density =', ra_stats[i, 'density_int'] %>% round(2), ')' ), 
+              (i*10-9),  (i*10), label_row_css = "background-color: #666; color: #fff;") 
+  }
+
+ra_sum %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 10)
+```
+
+```{r, fig.width = 15, fig.height=7.5}
+M_bib %>%
+  mutate(PY = PY %>% as.numeric()) %>%
+  group_by(label, PY) %>% summarise(n = n()) %>% ungroup() %>%
+  group_by(PY) %>% mutate(n_PY = sum(n)) %>% ungroup() %>%
+  mutate(n_rel = n / n_PY) %>%
+  select(label, PY, n, n_rel) %>%
+  arrange(label, PY) %>% 
+  complete(label, PY, fill = list(n = 0, n_rel = 0)) %>%
+  plot_summary_timeline(y1 = n, y2 = n_rel, t = PY, t_min = PY_min, t_max = PY_max, by = label, label = TRUE, pal = pal_ra,
+                        y1_text = "Number publications annually", y2_text = "Share of publications annually") +
+  plot_annotation(title = paste('Research Areas:', var_inst, 'Field around Dept.', var_dept, sep = ' '),
+                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
+                  caption = 'Absolute research area appearance (left), Relative research area appearance (right)')
+```
+
+
+```{r, include=FALSE}
+g_agg <- readRDS(paste0('../../temp/g_bib_agg_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %N>%
+  arrange(com) # %>%
+#   mutate(name = names_ra %>% pull(com_ra_name),
+#          color = cols_ra)
+```
+
+```{r, fig.height= 7.5, fig.width=7.5}
+g_agg %E>% 
+  filter(weight > 0 & from != to) %>%
+  filter(weight >= quantile(weight, 0.25) )  %N>%
+  mutate(com = com_names_bib %>% pull(label)) %>%
+  ggraph(layout = "circle") + 
+  geom_edge_fan(strenght = 0.8, aes(width = weight), alpha = 0.2)  + 
+  geom_node_point(aes(size = N, color = com))  + 
+  geom_node_text(aes(label = com), repel = TRUE) +
+  #theme_graph(base_family = "Arial") +
+  theme(legend.position = 'bottom') +
+  scale_size(range = c(2,20)) +
+  scale_color_brewer(palette = pal_ra) +
+  labs(title = paste('Research Area Connectivity:', var_inst, 'Field around Dept.', var_dept, sep = ' '),
+                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
+                  caption = 'Nodes = Identified Research Areas; Edges: Bibliographic coupling strenght (Jaccard weighted)')
+```
+
+## Automated (LMM) summary 
+
+```{r}
+com_labels_RA <- com_labels %>% filter(type == 'RA') %>%
+  mutate(label = label %>% str_replace('&', 'and')) %>%
+  mutate(description = 	description %>% str_replace('&', 'and'))
+
+for (i in 1:nrow(com_labels_RA)) {#i=1
+  com_labels_n <- com_labels_RA[i,]
+  writeLines(paste('Label:', com_labels_n$label, ' \n ',
+        'Description:', com_labels_n$description, ' \n \n ',
+        collapse = ' '))
+}
+```
+
+
+# Collaboration 
+
+```{r}
+el_inst <- readRDS(paste0('../../temp/el_inst_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))
+```
+
+
+```{r}
+g_inst <- el_inst %>% as_tbl_graph(directed = FALSE) %E>%
+  filter(weight >= cutof_edge_cit ) %N>%
+  filter(!node_is_isolated())
+```
+
+## Collaboration network 
+
+```{r, fig.height= 10, fig.width=15}
+# get biggest component
+components <- clusters(g_inst, mode="weak")
+biggest_cluster_id <- which.max(components$csize)
+vert_ids <- V(g_inst)[components$membership == biggest_cluster_id]
+igraph::induced_subgraph(g_inst, vert_ids)
+
+g_inst %N>% 
+  mutate(cent = centrality_degree(weights = weight)) %>%
+  filter(name == paste(var_inst, var_dept)  | rank(-cent) <= 100 ) %>%
+  ggraph(layout = "fr") + 
+  geom_edge_link(aes(width = weight,
+                     #color = .N()$name[from] == paste(var_inst, var_dept) | .N()$name[from] == paste(var_inst, var_dept),
+                     #filter = (weight >= weight  %>% quantile(0.01))
+                     )
+                 , alpha = 0.25)  + 
+  geom_node_point(aes(size = cent), col = 'steelblue1')  + 
+  geom_node_text(aes(label = name, 
+                     size = cent,
+                     filter = (cent >= cent  %>% quantile(0.25))), repel = TRUE) +
+  #theme_graph(base_family = "Arial") +
+  theme(legend.position = 'bottom') +
+  scale_edge_width_continuous(range = c(0.5, 5))  +
+  scale_edge_colour_manual(values = c("grey", "red"), name = '1st degree') +
+  scale_size(range = c(0.5,10)) 
+```
+
+# Endnotes
+
+```{r}
+sessionInfo()
+```
