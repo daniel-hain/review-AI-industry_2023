@@ -376,7 +376,7 @@ It should indicate the main theoretical theme, research framework applied, conte
 promt_docs = paste("I will now provide the", top_n, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
 
 promt_bib_doc <- df_text %>% 
-  filter(com == 7) %>%
+  filter(com == 6) %>%
   slice_max(order_by = dgr_int, n = top_n) %>%
   pull(text) %>% paste('-', ., sep = ' ', collapse = ' \n ')
 
