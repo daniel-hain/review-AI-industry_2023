@@ -84,3 +84,45 @@ plot_summary_timeline <- function(x, y1, y2, t, by,
   
   return(out)
 }
+
+##################################################################
+##	BEGIN: create_gpt_summary():
+##################################################################
+
+create_gpt_summary <- function(df_text, promt_system, promt_context, select_type, top_n = 10, model_version = "gpt-3.5-turbo"){
+  
+  df_result <- tibble(com = NULL, type = NULL, label = NULL, description = NULL)
+  list_coms = df_text %>% distinct(com) %>% pull(com)
+  
+  for(i in 1:length(list_coms)){#i = 1
+    promt_insert <- df_text %>% 
+      filter(com == list_coms[i]) %>%
+      slice_max(order_by = weight, n = top_n, with_ties = FALSE) %>%
+      pull(text) %>% paste('-', ., sep = ' ', collapse = ' \n ')
+    
+    promt_context <- paste(promt_context, promt_insert, sep = ' \n \n ')
+    
+    result_lmm <- create_chat_completion(
+      model = model_version,
+      temperature = 0,
+      messages = list(
+        list(
+          "role" = "system",
+          "content" = promt_system
+        ),
+        list(
+          "role" = "user",
+          "content" = promt_context
+        )
+      )
+    )
+    df_append <- tibble(com = list_coms[i],
+                        type = select_type,
+                        label = str_split(result_lmm$choices$message.content,'\\|')[[1]][1] %>% str_squish(),
+                        description = str_split(result_lmm$choices$message.content,'\\|')[[1]][2] %>% str_squish())
+    
+    df_result <- df_result %>% bind_rows(df_append)
+  }
+  return(df_result)
+}
+

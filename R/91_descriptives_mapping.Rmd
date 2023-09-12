@@ -1,5 +1,5 @@
 ---
-title: 'Field Mapping of Knowledge Structure: AI & INdustry Dynamics'
+title: 'Field Mapping of Knowledge Structure'
 author: "Daniel S. Hain"
 date: "`r format(Sys.time(), '%d %B, %Y')`"
 output:
@@ -108,18 +108,19 @@ knitr::opts_chunk$set(echo = FALSE,
 # When doing it here in the notebook
 var_inst <- 'AI'
 var_dept <- 'v1'
+var_label <- 'AI, industry and innovation dynamics'
 
 # When calling from a highert level script
 #var_inst <- params$institute
 #var_dept <- params$department
 ```
 
-# Introduction: Mapping of broad research field around `r var_inst`, `r var_dept`
+# Introduction: Mapping of broad research field around `r var_label`
 
 Here are preliminary results of the bibliometric mapping of the research field. Its purpose is:
 
 * To map the broader research community and distinct research field the department contributes to.
-* Identify core knowledge bases, research areas gtrends and topics.
+* Identify core knowledge bases, research areas trends and topics.
 * Highlight the positioning of the department within this dynamics.
 
 The method for the research-field-mapping can be reviewed here:
@@ -138,8 +139,6 @@ The method for the research-field-mapping can be reviewed here:
 ```{r}
 convert2df(file = '../data/scopus_00.csv', dbsource = "scopus", format = "csv") %>% as_tibble() %>% select(AU, PY, TI, SO)
 ```
-
-
 
 <!-- ####################################################################################### -->
 <!-- ####################################################################################### -->
@@ -166,7 +165,6 @@ com_labels <- read_csv2('../data/community_labeling.csv') %>%
   mutate(label = ifelse(is.na(label), paste0(type, ' ', com, ': unlabeled'), paste0(type, ' ', com, ': ', label)))
 ```
 
-
 # General Overview over the research field
 
 **Note:** This section provides basic descriptives of th identified research fielld, including number of articles over time, countries, institutions, and authors. See `Technical description`for additional explanations.
@@ -178,19 +176,12 @@ results <- read_rds(paste0('../../temp/M_res_', str_to_lower(var_inst), '_', str
 
 ## Main Indicators: Publications, Authors, Countries 
 
-### Corpus summary tabular
-
 ```{r}
 results %>% summary()
 ```
-### Corpus summary graphical
 
 ```{r}
-results %>% plot(k = 10, pause = FALSE)
-```
-
-```{r}
-prod_AU <- M %>% authorProdOverTime(k = 10, graph = TRUE)
+#prod_AU <- M %>% authorProdOverTime(k = 10, graph = TRUE)
 #plot(prod_AU$graph)
 ```
 
@@ -198,12 +189,12 @@ prod_AU <- M %>% authorProdOverTime(k = 10, graph = TRUE)
 rm(results, prod_AU)
 ```
 
-
+## Main institutions, journals, keywords
 
 ```{r, fig.width=17.5, fig.height=17.5}
-# # Authors, keywords, citations
-#M_threefield <- readRDS(paste0('../../temp/threefield_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) 
-#M_threefield
+# # institutions, keywords, citations
+M_threefield <- readRDS(paste0('../../temp/threefield_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) 
+M_threefield
 ```
 
 
@@ -213,6 +204,68 @@ rm(results, prod_AU)
 <!-- ####################################################################################### -->
 <!-- ####################################################################################### -->
 
+# Topic modelling 
+
+**Note:** Here, we report the results of a BERTYopic topic-modelling (basically, clustering on words) on all title+abstract texts. Identified topics can be interpreted as broad themes in the research field. See `Technical description`for additional explanations.
+
+```{r, include=FALSE}
+M_top <- readRDS(paste0('../../temp/M_top_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))
+```
+
+```{r, include=FALSE}
+com_names_top <- tibble( 
+  com = 1:(M_top %>% pull(com) %>% n_distinct()),
+  type = 'TP',
+  col = com %>% gg_color_select(pal = pal_tp)) %>%
+  left_join(com_labels %>% filter(type == 'TP') %>% select(com, label), by = 'com') %>%
+  mutate(label = ifelse(is.na(label), paste0('TP ', com, ': unlabeled'), label))
+            
+# # 1st alternative: Number them 1-n
+# paste(type, 1:(text_lda_gamma %>% pull(topic) %>% n_distinct()))           
+```
+
+```{r, include=FALSE}
+M_top %<>%  inner_join(com_names_top %>% select(com, label, col), by = 'com')
+```
+
+```{r, fig.width = 15, fig.height=7.5}
+M_top %>%
+  mutate(PY = as.numeric(PY)) %>%
+  count(PY, label, name = 'weight') %>%
+  group_by(PY) %>% mutate(weight_PY = sum(weight)) %>% ungroup() %>%
+  mutate(weight_rel = weight / weight_PY) %>%
+  select(PY, label, weight, weight_rel) %>%
+  filter(PY >= PY_min & PY <= PY_max) %>%
+  arrange(PY, label) %>%
+  plot_summary_timeline(y1 = weight, y2 = weight_rel, t = PY, t_min = PY_min, t_max = PY_max, by = label,  label = TRUE, pal = pal_tp, 
+                        y1_text = "Topic popularity annualy", y2_text = "Share of topic annually") +
+  plot_annotation(title = paste('Topic Modelling:', var_inst, 'Field around', var_dept, sep = ' '),
+                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
+                  caption = 'Absolute topic appearance (left), Relative topic appearance (right)')
+```
+
+## Automated (LMM) summary 
+
+Works a bit less precise, since it only has titles and no abstracts
+
+```{r}
+com_labels_TP <- com_labels %>% filter(type == 'TP') %>%
+  mutate(label = label %>% str_replace('&', 'and')) %>%
+  mutate(description = 	description %>% str_replace('&', 'and'))
+
+for (i in 1:nrow(com_labels_TP)) {#i=1
+  com_labels_n <- com_labels_TP[i,]
+  writeLines(paste('Label:', com_labels_n$label, ' \n ',
+        'Description:', com_labels_n$description, ' \n \n ',
+        collapse = ' '))
+}
+```
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
 
 # Knowledge Bases: Co-Citation network analysis 
 
@@ -238,6 +291,36 @@ com_names_cit <- tibble(
 ```{r, include=FALSE}
 C_nw %<>% left_join(com_names_cit %>% select(com, label, col), by = "com")
 ```
+
+## Development
+
+```{r, include=FALSE}
+el_2m <- readRDS(paste0('../../temp/el_2m_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>%
+  drop_na()
+```
+
+
+```{r, include=FALSE}
+cit_com_year <- el_2m %>%
+  count(com_cit, PY, name = 'TC') %>%
+  group_by(PY) %>%
+  mutate(TC_rel = TC / sum(TC)) %>%
+  ungroup() %>%
+  arrange(PY, com_cit) %>%
+  left_join(com_names_cit , by = c('com_cit' = 'com')) %>% 
+  complete(label, PY, fill = list(TC = 0, TC_rel = 0))
+```
+
+```{r, fig.width = 15, fig.height=7.5}
+cit_com_year %>%
+  plot_summary_timeline(y1 = TC, y2 = TC_rel, t = PY, t_min = PY_min, t_max = PY_max, by = label, pal = pal_kb, label = TRUE,
+                        y1_text = "Number citations recieved annually",  y2_text = "Share of citations recieved annually") +
+  plot_annotation(title = paste('Knowledge Bases:', var_inst, 'Field around Dept.', var_dept, sep = ' '),
+                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
+                  caption = 'Absolute knowledge base appearance (left), Relative knowledge base appearance (right)')
+```
+
+## Publications per cluster
 
 ```{r, include=FALSE}
 kb_stats <- C_nw %>%
@@ -266,32 +349,6 @@ kb_sum %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 10)
 ```
 
-```{r, include=FALSE}
-el_2m <- readRDS(paste0('../../temp/el_2m_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>%
-  drop_na()
-```
-
-
-```{r, include=FALSE}
-cit_com_year <- el_2m %>%
-  count(com_cit, PY, name = 'TC') %>%
-  group_by(PY) %>%
-  mutate(TC_rel = TC / sum(TC)) %>%
-  ungroup() %>%
-  arrange(PY, com_cit) %>%
-  left_join(com_names_cit , by = c('com_cit' = 'com')) %>% 
-  complete(label, PY, fill = list(TC = 0, TC_rel = 0))
-```
-
-```{r, fig.width = 15, fig.height=7.5}
-cit_com_year %>%
-  plot_summary_timeline(y1 = TC, y2 = TC_rel, t = PY, t_min = PY_min, t_max = PY_max, by = label, pal = pal_kb, label = TRUE,
-                        y1_text = "Number citations recieved annually",  y2_text = "Share of citations recieved annually") +
-  plot_annotation(title = paste('Knowledge Bases:', var_inst, 'Field around Dept.', var_dept, sep = ' '),
-                  subtitle = paste('Timeframe:', PY_min, '-', PY_max , sep = ' '),
-                  caption = 'Absolute knowledge base appearance (left), Relative knowledge base appearance (right)')
-```
-
 ## Automated (LMM) summary 
 
 Works a bit less precise, since it only has titles and no abstracts
@@ -309,8 +366,6 @@ for (i in 1:nrow(com_labels_KB)) {#i=1
 }
 ```
 
-
-
 <!-- ####################################################################################### -->
 <!-- ####################################################################################### -->
 <!-- ############################# NEXT PART ############################################### -->
@@ -320,6 +375,8 @@ for (i in 1:nrow(com_labels_KB)) {#i=1
 # Research Areas: Bibliographic coupling analysis
 
 **Note:** This analysis refers the bibliographic coupling analysis, where original publications are the unit of analysis. Identified research areas can be interpreted as the field's current research frontier. See `Technical description`for additional explanations.
+
+## Development
 
 ```{r, include=FALSE}
 M_bib <- readRDS(paste0('../../temp/M_bib_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %>% 
@@ -343,39 +400,6 @@ com_names_bib <- tibble(
 M_bib %<>% left_join(com_names_bib %>% select(com, label, col), by = "com")
 ```
 
-```{r, include=FALSE}
-ra_stats <- M_bib %>%
-  drop_na(com) %>%
-  group_by(com, label) %>%
-  summarise(n = n(), density_int = ((sum(dgr_int) / (n() * (n() - 1))) * 100) %>% round(3)) %>%
-  select(com, label, everything())
-```
-
-```{r}
-ra_sum <- M_bib %>% 
-  left_join(M %>% select(UT, AU, TI, TC), by = 'UT') %>%
-  group_by(label) %>% 
-  mutate(dgr_select = (dgr_int / max(dgr_int) * (TC / max(TC))) ) %>%
-  slice_max(order_by = dgr_select, n = 10, with_ties = FALSE) %>% 
-  mutate(TC_year = (TC / (2021 + 1 - PY)) %>% round(2),
-         dgr_int = dgr_int %>% round(2),
-         AU = AU %>% str_trunc(25),
-         TI = TI %>% str_trunc(125)) %>%
-  ungroup() %>%
-  select(AU, PY, TI, dgr_int, TC, TC_year) %>%
-  kable()
-
-
-for(i in 1:nrow(com_names_bib)){
-  ra_sum  %<>%
-    pack_rows(paste0('Research Area ', i, ': ', com_names_bib[i, 'label'],
-                     '   (n = ', ra_stats[i, 'n'], ', density =', ra_stats[i, 'density_int'] %>% round(2), ')' ), 
-              (i*10-9),  (i*10), label_row_css = "background-color: #666; color: #fff;") 
-  }
-
-ra_sum %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 10)
-```
-
 ```{r, fig.width = 15, fig.height=7.5}
 M_bib %>%
   mutate(PY = PY %>% as.numeric()) %>%
@@ -392,6 +416,57 @@ M_bib %>%
                   caption = 'Absolute research area appearance (left), Relative research area appearance (right)')
 ```
 
+## Publications by cluster
+
+```{r, include=FALSE}
+ra_stats <- M_bib %>%
+  drop_na(com) %>%
+  group_by(com, label) %>%
+  summarise(n = n(), density_int = ((sum(dgr_int) / (n() * (n() - 1))) * 100) %>% round(3)) %>%
+  select(com, label, everything())
+```
+
+```{r}
+ra_sum <- M_bib %>% 
+  left_join(M %>% select(UT, AU, TI, TC, DI), by = 'UT') %>%
+  group_by(label) %>% 
+  mutate(dgr_select = (dgr_int / max(dgr_int) * (TC / max(TC))) ) %>%
+  slice_max(order_by = dgr_select, n = 10, with_ties = FALSE) %>% 
+  mutate(TC_year = (TC / (2021 + 1 - PY)) %>% round(2),
+         dgr_int = dgr_int %>% round(2),
+         AU = AU %>% str_trunc(25),
+         TI = TI %>% str_trunc(125) %>% paste0("[", . , "](https://doi.org/", DI, ")")) %>%
+  ungroup() %>%
+  select(AU, PY, TI, dgr_int, TC, TC_year) %>%
+  kable()
+
+
+for(i in 1:nrow(com_names_bib)){
+  ra_sum  %<>%
+    pack_rows(paste0('Research Area ', i, ': ', com_names_bib[i, 'label'],
+                     '   (n = ', ra_stats[i, 'n'], ', density =', ra_stats[i, 'density_int'] %>% round(2), ')' ), 
+              (i*10-9),  (i*10), label_row_css = "background-color: #666; color: #fff;") 
+  }
+
+ra_sum %>% kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"), font_size = 10)
+```
+
+## Automated (LMM) summary 
+
+```{r}
+com_labels_RA <- com_labels %>% filter(type == 'RA') %>%
+  mutate(label = label %>% str_replace('&', 'and')) %>%
+  mutate(description = 	description %>% str_replace('&', 'and'))
+
+for (i in 1:nrow(com_labels_RA)) {#i=1
+  com_labels_n <- com_labels_RA[i,]
+  writeLines(paste('Label:', com_labels_n$label, ' \n ',
+        'Description:', com_labels_n$description, ' \n \n ',
+        collapse = ' '))
+}
+```
+
+## Further Analysis
 
 ```{r, include=FALSE}
 g_agg <- readRDS(paste0('../../temp/g_bib_agg_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds')) %N>%
@@ -418,20 +493,106 @@ g_agg %E>%
                   caption = 'Nodes = Identified Research Areas; Edges: Bibliographic coupling strenght (Jaccard weighted)')
 ```
 
-## Automated (LMM) summary 
+# Overal interplay
 
-```{r}
-com_labels_RA <- com_labels %>% filter(type == 'RA') %>%
-  mutate(label = label %>% str_replace('&', 'and')) %>%
-  mutate(description = 	description %>% str_replace('&', 'and'))
+## Knowledge Bases, Research Areas & Topics Interaction
 
-for (i in 1:nrow(com_labels_RA)) {#i=1
-  com_labels_n <- com_labels_RA[i,]
-  writeLines(paste('Label:', com_labels_n$label, ' \n ',
-        'Description:', com_labels_n$description, ' \n \n ',
-        collapse = ' '))
-}
+```{r, include=FALSE}
+# Nodes
+nl_3m <- com_names_bib %>%
+  bind_rows(com_names_cit) %>%
+  bind_rows(com_names_top) %>%
+  rename(name = label,
+         com_nr = com) %>%
+  relocate(name)
+
+# Edges
+el_2m_kb <- el_2m %>%
+  select(-from, -to) %>%
+  inner_join(com_names_cit %>% select(com, label), by = c('com_cit' = 'com')) %>%
+  inner_join(com_names_bib %>% select(com, label, col), by = c('com_bib' = 'com')) %>%
+  mutate(weight = 1) %>%
+  rename(from = label.x,
+         to = label.y) %>% # generic
+  select(from, to, weight, col) %>% 
+  drop_na() %>% 
+  count(from, to, col, wt = weight, name = 'weight') %>%
+  filter(percent_rank(weight) >= 0.25) %>%
+  weight_jaccard(i = from, j = to, w = weight) %>% 
+  select(-weight)
+
+el_2m_topic <- M_top %>% select(UT, label) %>%
+  left_join(M_bib %>% drop_na(com) %>% select(UT, label, col), by = 'UT') %>%
+  rename(from = label.y,
+         to = label.x) %>% # generic
+  select(from, to, col) %>% 
+  drop_na() %>% 
+  count(from, to, col,  name = 'weight') %>%
+  filter(percent_rank(weight) >= 0.25) %>%
+  weight_jaccard(i = from, j = to, w = weight) %>% select(-weight)
+
+# graph
+g_3m <- el_2m_kb %>% 
+  bind_rows(el_2m_topic) %>%
+  as_tbl_graph(directed = TRUE) %N>%
+  left_join(nl_3m, by = 'name') %>%
+  mutate(
+    level = case_when(
+      type == "KB" ~ 1,
+      type == "RA" ~ 2,
+      type == "TP" ~ 3),
+    coord_y = 0.1,
+    coord_x = 0.001 + 1/(max(level)-1) * (level-1)
+    )  %N>%
+  filter(!is.na(level))
 ```
+
+```{r, include=FALSE}
+## Build sankey plot
+fig <- plot_ly(type = "sankey", 
+               orientation = "h",
+               arrangement = "snap",
+  node = list(
+    label = g_3m %N>% as_tibble() %>% pull(name),
+    x = g_3m %N>% as_tibble() %>% pull(coord_x),
+    y = g_3m %N>% as_tibble() %>% pull(coord_y),
+    color = g_3m %N>% as_tibble() %>% pull(col), 
+    pad = 4
+  ), 
+  link = list(
+    source = (g_3m %E>% as_tibble() %>% pull(from)) -1,
+    target = (g_3m %E>% as_tibble() %>% pull(to)) -1,
+    value =  g_3m %E>% as_tibble() %>% pull(weight_jac),
+    color = g_3m %E>% as_tibble() %>% pull(col) %>% col2rgb() %>% as.matrix() %>% t() %>% as_tibble() %>% 
+      mutate(col_rgb = paste0('rgba(', red, ',' , green, ',', blue, ',0.75)')) %>%  pull(col_rgb)
+    )
+) %>% 
+  layout(title = paste('Knowledge Bases, Research Areas & Topics:', var_inst, 'Field around ', var_dept, sep = ' '),
+         margin = list(l = 50, r = 50, b = 100, t = 100, pad = 2)) 
+```
+
+
+## Joint Overview over Knowledge Bases, Research Areas, and Topics
+
+This plot shows the connection of publications in the research areas to knowledge bases (by citations) and topics (by gamma, document-topic weight)
+
+```{r, fig.height= 10, fig.width=15}
+fig
+```
+
+
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+<!-- ############################# NEXT PART ############################################### -->
+<!-- ####################################################################################### -->
+<!-- ####################################################################################### -->
+
+
+```{r, include=FALSE}
+rm(text_tidy, text_lda)
+```
+
+
 
 
 # Collaboration 
@@ -475,6 +636,7 @@ g_inst %N>%
   scale_edge_colour_manual(values = c("grey", "red"), name = '1st degree') +
   scale_size(range = c(0.5,10)) 
 ```
+
 
 # Endnotes
 

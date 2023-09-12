@@ -34,6 +34,9 @@ source("functions/functions_basic.R")
 var_inst <- 'AI'
 var_dept <- 'v1'
 
+# openaikey
+Sys.setenv(OPENAI_API_KEY = key_openai)
+
 ###########################################################################################
 ########################### Load & preprocessing articles
 ###########################################################################################
@@ -352,18 +355,20 @@ library(openai)
 
 M_bib %>% count(com)
 
-top_n = 10
+top_n_bib = 10
 
 promt_intro = 
 "You are a knowledgable and helpful researcher in social science. I want you to summarize the research in the following documents."
 
-promt_bib_intro = 
-  "I will provide you text with titles plus abstacts of scientific journal article publications. They are representative articles for broader research themes to be identified. 
-They are supposed to be similar in terms of theoretical foundations, literature they relate to, context or topic of research."
-
 promt_context = "All the documents are more or less strongly related to and cover diverent aspects of research on the impact of 
 artificial intelligence on industry dynbamics and innovation.
 Therefore, they all should be interpreted in relation to this overal theme."
+
+### 
+
+promt_bib_intro = 
+  "I will provide you text with titles plus abstacts of scientific journal article publications. They are representative articles for broader research themes to be identified. 
+They are supposed to be similar in terms of theoretical foundations, literature they relate to, context or topic of research."
 
 promt_bib_instruction = 
   "Your task is to summarize the topic overal research based on the provided article text by a short label of 2-5 words, plus a short description of 3-5 sentences. 
@@ -373,14 +378,14 @@ The description should be in light of the overal context, brief, focussed, clear
 It should indicate the main theoretical theme, research framework applied, context, potential contributions and implications for theory, policy, and professionals."
 # You response should have the following format: <label> | <description>" 
 
-promt_docs = paste("I will now provide the", top_n, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
+promt_docs_bib = paste("I will now provide the", top_n_bib, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
 
 promt_bib_doc <- df_text %>% 
   filter(com == 6) %>%
-  slice_max(order_by = dgr_int, n = top_n) %>%
+  slice_max(order_by = dgr_int, n = top_n_bib) %>%
   pull(text) %>% paste('-', ., sep = ' ', collapse = ' \n ')
 
-promt_bib <- paste(promt_bib_intro, promt_context, promt_bib_instruction, promt_docs, promt_bib_doc, sep = ' \n \n ') # 
+promt_bib <- paste(promt_bib_intro, promt_context, promt_bib_instruction, promt_docs_bib, promt_bib_doc, sep = ' \n \n ') # 
 promt_bib
 
 desc_bib <- create_chat_completion(
@@ -422,14 +427,14 @@ The description should be in light of the overal context, brief, focussed, clear
 It should indicate the main theoretical theme, research framework applied. and main arguments made."
 # You response should have the following format: <label> | <description>" 
 
-promt_docs = paste("I will now provide the", top_n_cit, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
+promt_docs_cit = paste("I will now provide the", top_n_cit, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
 
 promt_cit_doc <- C_nw %>% 
   filter(com == 6) %>%
   slice_max(order_by = dgr_int, n = top_n_cit) %>%
   pull(name) %>% paste('-', ., sep = ' ', collapse = ' \n ')
 
-promt_cit <- paste(promt_cit_intro, promt_context, promt_cit_instruction, promt_docs, promt_cit_doc, sep = ' \n \n ') # 
+promt_cit <- paste(promt_cit_intro, promt_context, promt_cit_instruction, promt_docs_cit, promt_cit_doc, sep = ' \n \n ') # 
 promt_cit
 
 desc_cit <- create_chat_completion(
@@ -447,6 +452,70 @@ desc_cit <- create_chat_completion(
 )
 
 
+###########################################################################################
+########################### NLP Topics
+########################################################################################### 
+
+df_top <- read_csv('data/documents_topic.csv')[-1] %>% 
+  as_tibble() %>% 
+  pivot_longer(where(is.numeric), names_to = 'com', values_to = 'weight') %>%
+  mutate(com = as.numeric(com)) %>%
+  filter(weight >= 0.05)
+
+M_top <- M %>% select(XX, UT, PY, TI, SO, TC_year) %>%
+  inner_join(df_top, by = 'UT')
+
+M_top %>% write_rds(paste0('../temp/M_top_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))
+
+df_text_top <- M %>% 
+  as_tibble() %>%
+  select(UT, PY, TI, AB) %>%
+  inner_join(M_top %>% select(UT, com, weight), by = 'UT') %>%
+  mutate(text = paste(TI, AB, sep = '. ')  %>% 
+           str_to_lower() %>% 
+           str_remove_all("©.*") %>%          
+           str_remove_all("/(&trade;|&reg;|&copy;|&#8482;|&#174;|&#169;)/.*") %>%
+           str_remove_all('(&elsevier;|&springer;|&rights reserved)/.*') %>%
+           str_squish())  %>%
+  select(UT, PY, text, com, weight) 
+
+M_top %>% count(com)
+
+top_n_top = 10
+
+promt_top_intro = 
+  "I will provide you text with titles plus abstacts of scientific journal article publications. They are representative articles for broader research topic to be identified. 
+They are supposed to be similar in terms of theoretical foundations, literature they relate to, context or topic of research."
+
+promt_top_instruction = 
+  "Your task is to summarize the topic overal research based on the provided article text by a short label of 2-5 words, plus a short description of 3-5 sentences. 
+The label optimally relates to relvevant scientific concepts in the field of study, and maybe the context it is studied.
+Only create a single label and description summarizing the overarching research theme in the documents.
+The description should be in light of the overal context, brief, focussed, clear, and avoid redundancies. This summary should highlight the commonality of the documents. 
+It should indicate the main theoretical theme, research framework applied, context, potential contributions and implications for theory, policy, and professionals.
+You response should have the following format: <label> | <description>" 
+#
+
+promt_docs_top = paste("I will now provide the", top_n_top, "documents. Every document starts with an '-', and ends with a linebreak.", sep = " ")
+
+promt_top_doc <- df_text_top %>% 
+  filter(com == 3) %>%
+  slice_max(order_by = weight, n = top_n_top, with_ties = FALSE) %>%
+  pull(text) %>% paste('-', ., sep = ' ', collapse = ' \n ')
+
+promt_top <- paste(promt_top_intro, promt_context, promt_top_instruction, promt_docs_top, promt_top_doc, sep = ' \n \n ') # 
+promt_top
+
+# # TODO: TRYOUT THIS FUINCTION FOR AUTOMATIOZATION
+# promt_system_top <- promt_intro
+# promt_context_top <- paste(promt_top_intro, promt_context, promt_top_instruction, promt_docs_top, sep = ' \n \n ') 
+# 
+# res_top <- create_gpt_summary(df_text = df_text_top, 
+#                               promt_system = promt_system_top, 
+#                               promt_context = promt_context_top, 
+#                               select_type = 'TP', 
+#                               top_n = 10,
+#                               model_version = "gpt-4")
 
 ###########################################################################################
 ########################### Local citations
@@ -466,6 +535,6 @@ rm(CR)
 ############################ Threefield Plot
 ########################################################################################### 
 
-M_threefield <- M %>% as.data.frame() %>% threeFieldsPlot(fields = c("AU", "DE", "CR_SO"), n = c(20, 20, 10))
+M_threefield <- M %>% as.data.frame() %>% threeFieldsPlot(fields = c("AU_UN", "DE", "CR_SO"), n = c(20, 10, 10))
 M_threefield %>% saveRDS(paste0('../temp/threefield_', str_to_lower(var_inst), '_', str_to_lower(var_dept), '.rds'))
 rm(M_threefield)
