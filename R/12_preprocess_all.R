@@ -29,6 +29,7 @@ rm(list=ls())
 # own Parameters
 source("functions/00_parameters.R")
 source("functions/functions_basic.R")
+source("keys.R")
 
 # institute and department
 var_inst <- 'AI'
@@ -507,6 +508,7 @@ promt_top <- paste(promt_top_intro, promt_context, promt_top_instruction, promt_
 promt_top
 
 # # TODO: TRYOUT THIS FUINCTION FOR AUTOMATIOZATION
+# ALSO; SOLVE LEAKED API KEY ISSUE
 # promt_system_top <- promt_intro
 # promt_context_top <- paste(promt_top_intro, promt_context, promt_top_instruction, promt_docs_top, sep = ' \n \n ') 
 # 
